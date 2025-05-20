@@ -1,8 +1,9 @@
+import os
 from chat_workflow import create_workflow
 from huggingface_hub import login
 from utils import run_pipeline
 
-login(token="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")
+login(token=os.getenv("HF_TOKEN"))
 
 run_pipeline()
 workflow = create_workflow()
