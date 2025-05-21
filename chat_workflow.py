@@ -5,6 +5,7 @@ from chat_state import ChatState
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
+from openai import OpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 from utils import merge_context_chunks, search, iterative_context_expansion, recursive_qa, ask_fn
 
@@ -15,7 +16,9 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 GROQ_MODEL = "llama-3.3-70b-versatile"
-client = Groq(api_key = GROQ_API_KEY)
+client = OpenAI(
+        api_key=OPENAI_API_KEY
+)
 used_chunks = set()
 llm = ChatOpenAI(
     model="gpt-4o",
@@ -148,7 +151,9 @@ def create_workflow():
 
     def iterative_query_search(state) :
         global client
-        client = Groq(api_key = GROQ_API_KEY)
+        client = OpenAI(
+            api_key=OPENAI_API_KEY
+        )
         query = state['processed_question']
         context_chunks = state['context_chunks']
         context = iterative_context_expansion(query ,  context_chunks ,  max_rounds=3)
