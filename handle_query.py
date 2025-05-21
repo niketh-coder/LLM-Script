@@ -18,7 +18,7 @@ SUMMARY_CACHE = "summary_cache.json"
 UPLOADED_SUMMARY_CACHE = "summary_cache.json"
 LLM_MODEL = ''
 MAX_RECENT_MESSAGES = 2
-MAX_CONTEXT_TOKENS = 8000
+MAX_CONTEXT_TOKENS = 10000
 
 api_keys = []
 
@@ -111,7 +111,7 @@ def ask_llm_to_refine_context_batch(query, chunk_batch):
     system_prompt = """You are an expert developer helping to analyze a React-Django full-stack project.
 Your task is to:
 1. From the provided code context, extract all the code relevant to the query solution.
-2. Do not remove the given context chunks too much.
+2. Do not remove the given context until you are sure it is not needed.
 3. Identify function/class names that are needed to understand the code but are not included yet. These could be:
    - Functions/classes called or instantiated in the context.
    - Functions/classes mentioned but their code is not given.
@@ -223,11 +223,14 @@ def chunk_context(text, max_tokens=MAX_CONTEXT_TOKENS):
     lines = text.split('\n')
     chunks, current_chunk, token_count = [], [], 0
 
-    for line in lines:
+    n = len(lines)
+    for i in range(n):
+        line = lines[i]
         line_tokens = count_tokens(line)
         if token_count + line_tokens > max_tokens - 200:
             chunks.append('\n'.join(current_chunk))
             current_chunk, token_count = [], 0
+            i -= 10
             print("New chunk" ,count_tokens(chunks[-1]))
         current_chunk.append(line)
         token_count += line_tokens
@@ -250,13 +253,14 @@ def recursive_qa(context, query, ask_fn, max_tokens=MAX_CONTEXT_TOKENS):
 system_prompt = (
         "You are an expert query automation assistant. "
         "Answer the user query using the provided relevant code context. "
-        "Answer should be ralted to codebase functions only avoiding general problems like internet issue etc."
-        "If it is not related to codebase dont answer"
+        "Answer should be related to codebase functions only avoiding general problems like internet issue etc."
         "Give 2 separate answers"
-        """1 - Give a very detailed answer for the user regarding all possible issues without technical terrms(user have no idea of codebase) .
+        """1 - Give an answer for the user regarding all possible issues and fixes .
             - tell what user may be doing wrong , make sure your answer is strictly related to codebase.
         """
-        "2 - give a short answer for the developer related to code problems in frontend and backend with function and file names for reference"
+        "2 - give an answer for the developer related to code problems and issues."
+        "Make sure to provide a clear and concise answer, and if necessary, include code snippets or examples to illustrate your points."
+        "If the answer is not related to codebase, please respond with 'I cannot answer this question.'"
     )
 
 def ask_fn(context, query):
@@ -365,7 +369,7 @@ def create_workflow():
                 "content": """
                 You are an expert at improving search queries for a large language model to execute them accurately.
                 Your task is to return an improved version of a given query only if one of the following is true:
-                The query is in a language other than English — in that case, translate it into English.
+                The query is in a language other than English — in that case, **Translate it into English**.
                 The query depends on the context or content of previous queries or answers — in that case, rephrase the query ONLY IF history available so it makes complete sense independently.
                 If the query is already in English and is self-contained, return it unchanged.
                 Do not explain your output. Return only the final, enhanced query, or the original if no enhancement is needed.
