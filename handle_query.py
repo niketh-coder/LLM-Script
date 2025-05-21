@@ -7,6 +7,7 @@ import time
 import tiktoken
 import json
 import requests
+import openai
 from typing import TypedDict, Optional, List, Annotated, Dict, Any
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver ,InMemorySaver
@@ -15,22 +16,11 @@ MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 INDEX_DIR = "/code analyzer/vector_db"
 SUMMARY_CACHE = "summary_cache.json"
 UPLOADED_SUMMARY_CACHE = "summary_cache.json"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+LLM_MODEL = ''
 MAX_RECENT_MESSAGES = 2
-MAX_CONTEXT_TOKENS = 6000
+MAX_CONTEXT_TOKENS = 8000
 
-api_keys = ['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',
-            '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' , 
-            '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', #mu
-            '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', #godz.07
-            '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', #shubhankar
-           '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' ,
-            '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',
-            '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',
-            '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',
-            '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',#arnav
-            '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'  #shreyans
-           ]
+api_keys = []
 
 embedder = SentenceTransformer(MODEL_NAME)
 with open(f"{INDEX_DIR}/metadata.json", "r") as f:
@@ -87,7 +77,7 @@ def merge_context_chunks(chunks , complete_cnt = 20):
     return full + refs
 
 
-def chunk_context_by_token_limit(context_chunks, max_tokens=4000):
+def chunk_context_by_token_limit(context_chunks, max_tokens=MAX_CONTEXT_TOKENS):
     batches = []
     current_batch = []
     current_tokens = 0
@@ -152,16 +142,16 @@ Be conservative — only include names in needed definitions if you are confiden
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": json.dumps(context_input, indent=2)}
     ]
-    client = Groq(api_key = api_keys[4])
+    client = openai.OpenAI(api_key=api_keys[api_key_index])
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model= LLM_MODEL,
         messages=messages,
         temperature=0
     )
     text = extract_json_from_response(response.choices[0].message.content)
     return text
 
-def process_all_batches(query, context_chunks, token_limit=4000):
+def process_all_batches(query, context_chunks, token_limit=MAX_CONTEXT_TOKENS):
     batches = chunk_context_by_token_limit(context_chunks, max_tokens=token_limit)
 
     all_relevant = []
@@ -208,7 +198,7 @@ def merge_chunks_to_string(relevant_chunks):
 def iterative_context_expansion(query, context_chunks, max_rounds=1):
     final_chunks = []
     for round_no in range(max_rounds):
-        result = process_all_batches(query, context_chunks , token_limit=4000)
+        result = process_all_batches(query, context_chunks , token_limit=MAX_CONTEXT_TOKENS)
 
         final_chunks.extend(result["relevant_chunks"])
         needed_chunks = result['needed_definitions']
@@ -276,10 +266,7 @@ def ask_fn(context, query):
         {context}
     """
 
-    client = Groq(
-        # api_key="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"
-        api_key= api_keys[10]
-        )
+    client = openai.OpenAI(api_key=api_keys[api_key_index])
     chat_completion = client.chat.completions.create(
         messages=[
             {
@@ -291,7 +278,7 @@ def ask_fn(context, query):
                 "content": user_prompt,
             }
         ],
-        model="llama-3.3-70b-versatile",
+        model= LLM_MODEL,
     )
     time.sleep(15)
     return chat_completion.choices[0].message.content
@@ -338,13 +325,11 @@ def create_workflow():
                 "Please summarize this conversation fragment:\n\n"
                 f"{message_text}"
             )
-    
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_keys[5]}"},
-                json={
-                    "model": GROQ_MODEL,
-                    "messages": [
+
+            client = openai.OpenAI(api_key=api_keys[api_key_index])
+            response = client.chat.completions.create(
+                model= LLM_MODEL,
+                messages=[
                         {
                             "role": "system",
                             "content": (
@@ -357,12 +342,12 @@ def create_workflow():
                             "role": "user",
                             "content": prompt
                         }
-                    ]
-                }
-            ).json()
+                    ],
+                temperature=0
+            )
     
-            history_summary = response["choices"][0]["message"]["content"]
-            messages = recent_messages  # discard old messages
+            history_summary =  response.choices[0].message.content.strip()
+            messages = recent_messages
     
        
         final_history = history_summary + "\n\n" + "\n\n".join(
@@ -393,17 +378,14 @@ def create_workflow():
         ]
         
         try:
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_keys[9]}"},
-                json={
-                    "model": GROQ_MODEL,
-                    "messages": messages,
-                    "temperature": 0.5,
-                    "max_tokens": 3000
-                }
+            client = openai.OpenAI(api_key=api_keys[api_key_index])
+            response = client.chat.completions.create(
+                model= LLM_MODEL,
+                messages=messages,
+                temperature=0,
+                max_tokens=MAX_CONTEXT_TOKENS
             )
-            response_data = response.json()
+            response_data = response.choices[0].message.content.strip()
 
             if "choices" in response_data and len(response_data["choices"]) > 0:
                 enhanced_query = response_data["choices"][0]['message']["content"].strip()
@@ -487,6 +469,8 @@ state = {
     "history_summary": "",
     "history": ""
 }
+
+api_key_index = 0
 
 while True :
     state["question"] = input("Enter your query (or 'exit' to quit): ")
