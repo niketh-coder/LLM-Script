@@ -15,18 +15,19 @@ import ast
 import hashlib
 import json
 import concurrent.futures
+from google import genai
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2" 
 INDEX_DIR = "/code analyzer/vector_db"
-SUMMARY_CACHE = "summary_cache.json"
+SUMMARY_CACHE = "updated_summary_cache.json"
 UPLOADED_SUMMARY_CACHE = "summary_cache.json"
 LLM_MODEL = "gpt-4-turbo"
 MAX_RECENT_MESSAGES = 2
 IGNORED_DIRS = {'repos' , 'node_modules', 'venv','myenv', 'env', 'dist', 'build', '.git', '__pycache__' , '.github' , 'lib', 'bin', 'include', 'share', 'tests', 'test' , '.idea' , '.vscode' , '.pytest_cache' , '.mypy_cache' , '.coverage' , '.tox' , '.eggs' , '.hypothesis' , '.pytest' }
 IGNORED_FILES = {'.gitignore', 'package-lock.json'}
 TARGET_EXTENSION = '.py'
-MAX_CHUNK_TOKENS = 10000
-MAX_FILE_TOKENS = 50000
+MAX_CHUNK_TOKENS = 100000
+MAX_FILE_TOKENS = 500000
 
 
 embedder = SentenceTransformer(MODEL_NAME)
@@ -266,18 +267,16 @@ def chunk_code(code, encoding, max_tokens=MAX_CHUNK_TOKENS):
 
 def summarize_chunk(prompt, file):
     global api_key_index
-    for attempt in range(5):  
+    for attempt in range(3):  
         try:
-            client = openai.OpenAI(api_key=api_keys[api_key_index])
-            # client = Groq(api_key= api_keys[api_key_index])
+            client = genai.Client(api_key= api_keys[api_key_index])
+            
             print(f"Summarizing {file} using key index {api_key_index}")
-            response = client.chat.completions.create(
-                model=LLM_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-                max_tokens=6000
+            response = client.models.generate_content(
+                model=LLM_MODEL, contents=prompt
             )
-            return response.choices[0].message.content.strip()
+            
+            return response.text
 
         except Exception as e:
             print(f"Error in summarzing : {e}")
@@ -298,6 +297,7 @@ def summarize_code(block, encoding):
     code = block["source"]
     code_hash = hashlib.md5(code.encode()).hexdigest()
     if code_hash in summary_cache:
+        updated_summary_cache[code_hash] = summary_cache[code_hash]
         return summary_cache[code_hash], block["source"], block["file"], block['name']
 
     tokens = encoding.encode(code)
@@ -325,7 +325,7 @@ def summarize_code(block, encoding):
         )
         full_summary =  summarize_chunk( prompt , block['file'] )
 
-    summary_cache[code_hash] = full_summary
+    updated_summary_cache[code_hash] = full_summary
     return full_summary, block["source"], block["file"], block['name']
     # return None
 
@@ -359,7 +359,7 @@ def build_vector_db(summaries_data):
         json.dump(list(zip(summaries, paths, codes , name)), f)
 
     with open(SUMMARY_CACHE, "w") as f:
-        json.dump(summary_cache, f)
+        json.dump(updated_summary_cache, f)
 
 
 def run_pipeline():
@@ -372,6 +372,8 @@ def run_pipeline():
 if os.path.exists(UPLOADED_SUMMARY_CACHE):
     with open(UPLOADED_SUMMARY_CACHE, "r") as f:
         summary_cache = json.load(f)
+        
+updated_summary_cache = {}
         
 count = 0
 api_key_index = 0
