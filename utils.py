@@ -9,17 +9,24 @@ import tiktoken
 from groq import Groq
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = "llama-3.3-70b-versatile"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_SUMMARY_MODEL = os.getenv("OPENAI_SUMMARY_MODEL")
+OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL")
+# GROQ_MODEL = "llama-3.3-70b-versatile"
 IGNORED_DIRS = {'node_modules', 'venv', 'env', 'dist', 'build', '.git', '__pycache__'}
 IGNORED_FILES = {'.gitignore', 'package-lock.json'}
 SUMMARY_CACHE = "./summary_cache.json"
 BASE_DIR = "./Build-it-master"
 ENCODING = tiktoken.get_encoding("cl100k_base")
 embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-client = Groq(
-        api_key= GROQ_API_KEY
+# client = Groq(
+#         api_key= GROQ_API_KEY
+# )
+client = OpenAI(
+        api_key=OPENAI_API_KEY
 )
 MAX_CONTEXT_TOKENS = 4000
 system_prompt = """You are an expert developer helping to analyze a React-Django full-stack project."""
@@ -120,29 +127,29 @@ def extract_json_from_response(text):
 
 def ask_llm_to_refine_context_batch(query, chunk_batch):
     system_prompt = """You are an expert developer helping to analyze a React-Django full-stack project.
-Your task is to:
-1. From the provided code context, extract all the code relevant to the query solution.
-2. Do not remove the given context chunks too much.
-3. Identify function/class names that are needed to understand the code but are not included yet. These could be:
-   - Functions/classes called or instantiated in the context.
-   - Functions/classes mentioned but their code is not given.
+    Your task is to:
+    1. From the provided code context, extract all the code relevant to the query solution.
+    2. Do not remove the given context chunks too much.
+    3. Identify function/class names that are needed to understand the code but are not included yet. These could be:
+    - Functions/classes called or instantiated in the context.
+    - Functions/classes mentioned but their code is not given.
 
-Respond strictly in the following JSON format without any other sentences:
-{
-  "relevant_chunks": [
+    Respond strictly in the following JSON format without any other sentences:
     {
-      "name": "...",
-      "file": "...",
-      "trimmed_source": "..."
-    },
-    ...
-  ],
-  "needed_definitions": [
-    { "name": "...", "file": "..." },
-    ...
-  ]
-}
-Be conservative — only include names in needed definitions if you are confident are required."""
+    "relevant_chunks": [
+        {
+        "name": "...",
+        "file": "...",
+        "trimmed_source": "..."
+        },
+        ...
+    ],
+    "needed_definitions": [
+        { "name": "...", "file": "..." },
+        ...
+    ]
+    }
+    Be conservative — only include names in needed definitions if you are confident are required."""
 
     context_input = {
         "query": query,
@@ -267,15 +274,16 @@ def recursive_qa(context, query, ask_fn, max_tokens=MAX_CONTEXT_TOKENS):
     return recursive_qa(combined, query , ask_fn, max_tokens)
 
 def ask_fn(context, query):
-    user_prompt =  f"""Here is the user question: "{query}"
+    user_prompt = f"""Here is the user question: "{query}"
     
-        Relevant code context:
-        {context}
+    Relevant code context:
+    {context}
     """
 
-    client = Groq(
-        api_key= GROQ_API_KEY
-        )
+    client = OpenAI(
+        api_key=OPENAI_API_KEY
+    )
+    
     chat_completion = client.chat.completions.create(
         messages=[
             {
@@ -287,19 +295,25 @@ def ask_fn(context, query):
                 "content": user_prompt,
             }
         ],
-        model=GROQ_MODEL,
+        model="gpt-4-turbo", 
     )
-    time.sleep(15)
+    
     return chat_completion.choices[0].message.content
 
 def summarize_chunk(prompt, file ):
     for attempt in range(3):
         global api_key
         try:
-            print(f"Summarising {file} using api key{GROQ_API_KEY}")
-            groq_client = Groq(api_key= GROQ_API_KEY)
-            response = groq_client.chat.completions.create(
-                model=GROQ_MODEL,
+            # print(f"Summarising {file} using api key{GROQ_API_KEY}")
+            # groq_client = Groq(api_key= GROQ_API_KEY)
+            # response = groq_client.chat.completions.create(
+            #     model=GROQ_MODEL,
+            #     messages=[{"role": "user", "content": prompt}],
+            # )
+            # return response.choices[0].message.content.strip()
+            openai_client = OpenAI(api_key=OPENAI_API_KEY)
+            response = openai_client.chat.completions.create(
+                model="gpt-3.5-turbo", 
                 messages=[{"role": "user", "content": prompt}],
             )
             return response.choices[0].message.content.strip()
@@ -333,6 +347,7 @@ def summarize_code( block, encoding):
 
     code = block["source"]
     tokens = encoding.encode(code)
+    # TODO : check if the code is too short
     if len(tokens) > 10000 :
         return None
     count += len(tokens)
@@ -593,6 +608,6 @@ def get_semantic_chunks_from_repo(repo_path):
 def run_pipeline():
     repo_dir = BASE_DIR
     code_blocks = get_semantic_chunks_from_repo(repo_dir)
-    print(len(code_blocks))
+    # print(len(code_blocks))
     summaries_data = summarize_all(code_blocks )
     build_vector_db(summaries_data)
