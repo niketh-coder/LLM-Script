@@ -20,28 +20,17 @@ MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 INDEX_DIR = "/code analyzer/vector_db"
 SUMMARY_CACHE = "summary_cache.json"
 UPLOADED_SUMMARY_CACHE = "summary_cache.json"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+LLM_MODEL = "gpt-4-turbo"
 MAX_RECENT_MESSAGES = 2
 IGNORED_DIRS = {'repos' , 'node_modules', 'venv','myenv', 'env', 'dist', 'build', '.git', '__pycache__' , '.github' , 'lib', 'bin', 'include', 'share', 'tests', 'test' , '.idea' , '.vscode' , '.pytest_cache' , '.mypy_cache' , '.coverage' , '.tox' , '.eggs' , '.hypothesis' , '.pytest' }
 IGNORED_FILES = {'.gitignore', 'package-lock.json'}
 TARGET_EXTENSION = '.py'
-MAX_CHUNK_TOKENS = 6000
-MAX_FILE_TOKENS = 15000
+MAX_CHUNK_TOKENS = 10000
+MAX_FILE_TOKENS = 50000
 
 
 embedder = SentenceTransformer(MODEL_NAME)
-api_keys = ['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',
-            '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' , 
-            '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', #mu
-            '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', #godz.07
-            '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', #shubhankar
-           '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' ,
-            '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',
-            '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',
-            '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',
-            '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',#arnav
-            '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'  #shreyans
-           ]
+api_keys = []
 summary_cache = {}
 
 ENCODING = tiktoken.get_encoding("cl100k_base")
@@ -115,7 +104,7 @@ def extract_chunks(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         source = f.read()
 
-    if len(source) > 100000:
+    if len(source) > 1000000:
         return None
 
     chunks = []
@@ -211,7 +200,7 @@ def extract_chunks(file_path):
 def extract_chunks_md(file_path) :
     with open(file_path, 'r', encoding='utf-8') as f:
         source = f.read()
-    if len(source) > 10000 :
+    if len(source) > 100000 :
         return None
     chunks = []
     chunk_size = 1000
@@ -277,16 +266,16 @@ def chunk_code(code, encoding, max_tokens=MAX_CHUNK_TOKENS):
 
 def summarize_chunk(prompt, file):
     global api_key_index
-    for attempt in range(5):  # more retries
+    for attempt in range(5):  
         try:
-            # client = openai.OpenAI(api_key=api_keys[api_key_index])
-            client = Groq(api_key= api_keys[api_key_index])
+            client = openai.OpenAI(api_key=api_keys[api_key_index])
+            # client = Groq(api_key= api_keys[api_key_index])
             print(f"Summarizing {file} using key index {api_key_index}")
             response = client.chat.completions.create(
-                model=GROQ_MODEL,
+                model=LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
-                max_tokens=1000
+                max_tokens=6000
             )
             return response.choices[0].message.content.strip()
 
@@ -385,5 +374,5 @@ if os.path.exists(UPLOADED_SUMMARY_CACHE):
         summary_cache = json.load(f)
         
 count = 0
-api_key_index = 7
+api_key_index = 0
 run_pipeline()
