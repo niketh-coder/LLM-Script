@@ -136,15 +136,19 @@ def extract_chunks(file_path):
 
     pattern = re.compile(
         r'^(?P<full>'
-        r'(?P<export>export\s+)?(?P<async>async\s+)?function\s+(?P<funcname>\w+)'       
-        r'|export\s+default\s+function\s+(?P<defaultname>\w+)?'                         
-        r'|class\s+(?P<classname>\w+)'                                                 
-        r'|(?P<var_decl>(const|let|var)\s+(?P<varname>\w+)\s*=\s*(async\s+)?(\([^)]*\)|\w+)\s*=>)' 
-        r'|(?P<anonfunc>(const|let|var)\s+(?P<anonname>\w+)\s*=\s*function)'          
+        r'(?P<export>export\s+)?(?P<async>async\s+)?function\s+(?P<funcname>\w+)'          
+        r'(<[^>{}()\n]*)?'                                                                
+        r'\s*\([^)]*\)\s*(:\s*[\w\[\]<>|]+)?'                                              
+        r'|export\s+default\s+function\s+(?P<defaultname>\w+)?'                            
+        r'|class\s+(?P<classname>\w+)'                                                     
+        r'(\s+extends\s+\w+)?(\s+implements\s+[\w<>,\s]+)?'                               
+        r'|(?P<var_decl>(const|let|var)\s+(?P<varname>\w+)\s*'                             
+        r'(:\s*[^=]+)?\s*=\s*(async\s+)?(\([^)]*\)|\w+)\s*=>)'                             
+        r'|(?P<anonfunc>(const|let|var)\s+(?P<anonname>\w+)\s*'                           
+        r'(:\s*[^=]+)?\s*=\s*function)'                                                    
         r')',
         re.MULTILINE
     )
-
     matches = list(pattern.finditer(source_wo_imports))
     positions = [match.start() for match in matches]
     positions.append(len(source_wo_imports))
