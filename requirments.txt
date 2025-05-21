@@ -31,6 +31,7 @@ langchain==0.3.25
 langchain-anthropic==0.3.13
 langchain-community==0.3.24
 langchain-core==0.3.60
+langchain-openai==0.3.17
 langchain-text-splitters==0.3.8
 langgraph==0.4.5
 langgraph-checkpoint==2.0.26
@@ -44,6 +45,7 @@ multidict==6.4.4
 mypy_extensions==1.1.0
 networkx==3.4.2
 numpy==2.2.6
+openai==1.79.0
 orjson==3.10.18
 ormsgpack==1.9.1
 packaging==24.2
