@@ -20,7 +20,7 @@ def build_file_summary_prompt(file_path, call_graph, imports):
     return prompt
 
 def build_file_summary(prompt , api_key , LLM_MODEL):   
-    client = genai.Client(api_key= api_keys[api_key_index])
+    client = genai.Client(api_key= api_key)
             
     response = client.models.generate_content(
         model=LLM_MODEL, contents=prompt

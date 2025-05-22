@@ -332,19 +332,54 @@ def summarize_code(block, encoding):
         chunks = chunk_code(code, encoding)
         summaries = []
         for i, chunk in enumerate(tqdm(chunks, desc=f"Summarizing chunks in {block['file']}")):
-            prompt = (
-                f"Summarize this part of the code (chunk {i+1}/{len(chunks)}) for semantic search. "
-                f"Mention component name or function, API endpoints if any, and what the code does. "
-                f"File: {block['file']}:\n\n{chunk}"
+            prompt = (f"""You are an expert software engineer and technical writer.
+                    Given a (chunk {i+1}/{len(chunks)}) of function or class code, generate a **detailed and precise summary** covering:
+                    - Purpose and behavior
+                    - Key implementation details and logic
+                    - Input parameters (roles/types if clear)
+                    - Return values and meaning
+                    - Side effects, exceptions, or special cases
+                    - Relevant function/method names related to behavior
+                    - Typical usage scenarios
+                    - Any assumptions or constraints
+                    The summary should be:
+                    - Clear, concise, and comprehensive
+                    - Suitable for semantic search with developer queries
+                    - Include important terms and function names as in the code
+                    Avoid vague generalities or simple restatements. Focus on what a developer needs to understand its functionality.
+                    ---
+                    **File**
+                    {block['file']}
+                    **Code:**
+                    ```{chunk}```
+                    **Summary:**"""
             )
             summary = summarize_chunk(prompt , block['file'])
             summaries.append(summary)
         full_summary = "\n\n".join(summaries)
     else:
         prompt = (
-            f"Summarize the following code for semantic search. "
-            f"Mention the component name or function, API endpoints if any, and what the code does. "
-            f"File: {block['file']}:\n\n{code}"
+            f"""You are an expert software engineer and technical writer.
+                    Given a function or class code, generate a **detailed and precise summary** covering:
+                    - Purpose and behavior
+                    - Key implementation details and logic
+                    - Input parameters (roles/types if clear)
+                    - Return values and meaning
+                    - Side effects, exceptions, or special cases
+                    - Relevant function/method names related to behavior
+                    - Typical usage scenarios
+                    - Any assumptions or constraints
+                    The summary should be:
+                    - Clear, concise, and comprehensive
+                    - Suitable for semantic search with developer queries
+                    - Include important terms and function names as in the code
+                    Avoid vague generalities or simple restatements. Focus on what a developer needs to understand its functionality.
+                    ---
+                    **File**
+                    {block['file']}
+                    **Code:**
+                    ```{code}```
+                    **Summary:**"""
         )
         full_summary =  summarize_chunk( prompt , block['file'] )
 
