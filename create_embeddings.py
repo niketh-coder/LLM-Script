@@ -15,7 +15,8 @@ import ast
 import hashlib
 import json
 import concurrent.futures
-from google import genai
+# from google import genai
+from build_call_graph import build_call_graph
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2" 
 INDEX_DIR = "/code analyzer/vector_db"
@@ -26,6 +27,7 @@ MAX_RECENT_MESSAGES = 2
 IGNORED_DIRS = {'repos' , 'node_modules', 'venv','myenv', 'env', 'dist', 'build', '.git', '__pycache__' , '.github' , 'lib', 'bin', 'include', 'share', 'tests', 'test' , '.idea' , '.vscode' , '.pytest_cache' , '.mypy_cache' , '.coverage' , '.tox' , '.eggs' , '.hypothesis' , '.pytest' }
 IGNORED_FILES = {'.gitignore', 'package-lock.json'}
 TARGET_EXTENSION = '.py'
+CALL_GRAPH_FILE = "call_graph.json"
 MAX_CHUNK_TOKENS = 100000
 MAX_FILE_TOKENS = 500000
 
@@ -368,6 +370,7 @@ def build_vector_db(summaries_data):
 
 def run_pipeline():
     repo_dir = input("Enter the path to the repository: ")
+    build_call_graph(repo_dir, CALL_GRAPH_FILE , IGNORED_DIRS , IGNORED_FILES)
     code_blocks = get_semantic_chunks_from_repo(repo_dir)
     print(len(code_blocks))
     summaries_data = summarize_all(code_blocks )

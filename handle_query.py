@@ -19,6 +19,7 @@ UPLOADED_SUMMARY_CACHE = "summary_cache.json"
 LLM_MODEL = ''
 MAX_RECENT_MESSAGES = 2
 MAX_CONTEXT_TOKENS = 10000
+CALL_GRAPH_FILE = "call_graph.json"
 
 api_keys = []
 
@@ -38,17 +39,47 @@ def search(query, top_k=3):
 
     q_vec = embedder.encode([query])
     _, I = index.search(q_vec, top_k)
-
-    global used_chunks
-    for id in I[0][:20] :
-        if id not in used_chunks :
-            used_chunks.add(id)
             
     return [metadata[i] for i in I[0]]
 
+def expand_with_related_chunks(initial_chunks, call_graph):
+    to_add_keys = set()
+
+    for chunk in initial_chunks:
+        file = chunk[1]
+        name = chunk[3]
+        to_add_keys.add((file, name))
+
+        callees = set(call_graph.get(file, {}).get("names", {}).get(name, []))
+
+        callers = set()
+        for other_name, called in call_graph.get(file, {}).get("names", {}).items():
+            if name in called:
+                callers.add(other_name)
+
+        related = callees.union(callers)
+        # print(f"File: {file}, Name: {name}, Related: {related}")
+        for rel_name in related:
+            to_add_keys.add((file, rel_name))
+
+    merged_chunks = []
+    for i, meta in enumerate(metadata):
+        file, name = meta[1], meta[3]
+        if (file, name) in to_add_keys and i not in used_chunks:
+            merged_chunks.append(meta)
+            used_chunks.add(i)
+
+    print(len(merged_chunks) , len(used_chunks))
+    return merged_chunks
+
+
 def convert_chunks_to_context_format(chunks):
+    with open(CALL_GRAPH_FILE, 'r') as f:
+        call_graph = json.load(f)
+
+    all_chunks = expand_with_related_chunks(chunks, call_graph)
     context_chunks = []
-    for chunk in chunks:
+    for chunk in all_chunks:
         if len(chunk) >= 4:
             summary, file, source, name = chunk
             context_chunks.append({
