@@ -22,18 +22,28 @@ MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 INDEX_DIR = "/code analyzer/vector_db"
 SUMMARY_CACHE = "updated_summary_cache.json"
 UPLOADED_SUMMARY_CACHE = "summary_cache.json"
-LLM_MODEL = "gpt-4-turbo"
+# LLM_MODEL = "gpt-4-turbo"
+LLM_MODEL = "llama-3.3-70b-versatile"
 MAX_RECENT_MESSAGES = 2
 IGNORED_DIRS = {'repos' , 'node_modules', 'venv','myenv', 'env', 'dist', 'build', '.git', '__pycache__' , '.github' , 'lib', 'bin', 'include', 'share', 'tests', 'test' , '.idea' , '.vscode' , '.pytest_cache' , '.mypy_cache' , '.coverage' , '.tox' , '.eggs' , '.hypothesis' , '.pytest' }
 IGNORED_FILES = {'.gitignore', 'package-lock.json'}
 TARGET_EXTENSION = '.py'
 CALL_GRAPH_FILE = "call_graph.json"
+FILE_SUMMARY_PATH = "file_summary.json"
 MAX_CHUNK_TOKENS = 100000
 MAX_FILE_TOKENS = 500000
 
 
 embedder = SentenceTransformer(MODEL_NAME)
-api_keys = []
+api_keys = ['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', #mu
+            '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', #godz.07
+            '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', #shubhankar
+           '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' ,
+            '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',
+            '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',
+            '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',
+            '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',#arnav
+            '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']
 summary_cache = {}
 
 ENCODING = tiktoken.get_encoding("cl100k_base")
@@ -112,7 +122,7 @@ def extract_chunks(file_path):
 
     chunks = []
 
-    import_pattern = r'^(import\s.+?;[ \t]*$|import\s.+?from\s+[\'\"].+?[\'\"];?[ \t]*$)'
+    import_pattern = r'^\s*import\s.+?;?\s*$'
     imports = re.findall(import_pattern, source, re.MULTILINE)
     import_code = '\n'.join(imports).strip()
 
@@ -283,7 +293,14 @@ def summarize_chunk(prompt, file):
             )
             
             return response.text
-
+            # print(f"Summarising {file} using api key{api_keys[api_key_index]}")
+            # groq_client = Groq(api_key= api_keys[api_key_index])
+            # response = groq_client.chat.completions.create(
+            #     model= LLM_MODEL,
+            #     messages=[{"role": "user", "content": prompt}],
+            # )
+            # return response.choices[0].message.content.strip()
+        
         except Exception as e:
             print(f"Error in summarzing : {e}")
             if len(api_keys) > 1:
@@ -351,10 +368,19 @@ def summarize_all(code_blocks):
     return [r for r in results if r is not None]
 
 def build_vector_db(summaries_data):
-    summaries, codes, paths , name = zip(*[d for d in summaries_data if d[0]])
-    # print(name)
-    vectors = embedder.encode(summaries)
+    with open(FILE_SUMMARY_PATH , "r") as f:
+        file_summaries = json.load(f)
     
+    summaries, codes, paths, names = zip(*[d for d in summaries_data if d[0]])
+
+    combined_texts = []
+    for summary, code, path in zip(summaries, codes, paths):
+        file_summary = file_summaries.get(path, "")
+        combined = f"File Summary: {file_summary}\n\nFunction/Class Summary: {summary}\n\nCode:\n{code}"
+        combined_texts.append(combined)
+
+    
+    vectors = embedder.encode(combined_texts)
     index = faiss.IndexFlatL2(len(vectors[0]))
     index.add(vectors)
 
@@ -362,15 +388,16 @@ def build_vector_db(summaries_data):
     faiss.write_index(index, f"{INDEX_DIR}/code_index.faiss")
 
     with open(f"{INDEX_DIR}/metadata.json", "w") as f:
-        json.dump(list(zip(summaries, paths, codes , name)), f)
+        json.dump(list(zip(summaries, paths, codes, names)), f)
 
     with open(SUMMARY_CACHE, "w") as f:
         json.dump(updated_summary_cache, f)
 
 
+
 def run_pipeline():
     repo_dir = input("Enter the path to the repository: ")
-    build_call_graph(repo_dir, CALL_GRAPH_FILE , IGNORED_DIRS , IGNORED_FILES)
+    build_call_graph(repo_dir, CALL_GRAPH_FILE , FILE_SUMMARY_PATH , IGNORED_DIRS , IGNORED_FILES , LLM_MODEL , api_keys[api_key_index])
     code_blocks = get_semantic_chunks_from_repo(repo_dir)
     print(len(code_blocks))
     summaries_data = summarize_all(code_blocks )
@@ -383,5 +410,5 @@ if os.path.exists(UPLOADED_SUMMARY_CACHE):
 updated_summary_cache = {}
         
 count = 0
-api_key_index = 0
+api_key_index = 4
 run_pipeline()

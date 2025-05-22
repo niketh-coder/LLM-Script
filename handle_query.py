@@ -50,15 +50,17 @@ def expand_with_related_chunks(initial_chunks, call_graph):
         name = chunk[3]
         to_add_keys.add((file, name))
 
-        callees = set(call_graph.get(file, {}).get("names", {}).get(name, []))
+        graph = call_graph.get(file, {}).get("names", {})
+
+        callees = set(graph.get(name, {}).get("calls", []))
 
         callers = set()
-        for other_name, called in call_graph.get(file, {}).get("names", {}).items():
-            if name in called:
+        for other_name, entry in graph.items():
+            if name in entry.get("calls", []):
                 callers.add(other_name)
 
         related = callees.union(callers)
-        # print(f"File: {file}, Name: {name}, Related: {related}")
+
         for rel_name in related:
             to_add_keys.add((file, rel_name))
 
@@ -69,8 +71,9 @@ def expand_with_related_chunks(initial_chunks, call_graph):
             merged_chunks.append(meta)
             used_chunks.add(i)
 
-    print(len(merged_chunks) , len(used_chunks))
+    print(len(merged_chunks), len(used_chunks))
     return merged_chunks
+
 
 
 def convert_chunks_to_context_format(chunks):
